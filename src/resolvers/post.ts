@@ -31,6 +31,7 @@ export class PostResolver {
     await em.persistAndFlush(post);
     return post;
   }
+
   @Mutation(() => Post, { nullable: true })
   async updatePost(
     // type-graphql might be able to figure out the return type based on typescript type
