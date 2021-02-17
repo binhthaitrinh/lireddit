@@ -8,6 +8,11 @@ import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import "reflect-metadata";
 import { UserResolver } from "./resolvers/user";
+import redis from "redis";
+import session from "express-session";
+import connectRedis from "connect-redis";
+import { MyContext } from "./types";
+import cors from "cors";
 
 const main = async () => {
   const orm = await MikroORM.init(microConfig);
@@ -19,16 +24,43 @@ const main = async () => {
 
   const app = express();
 
+  const RedisStore = connectRedis(session);
+  const redisClient = redis.createClient();
+  app.use(cors({ credentials: true }));
+
+  app.use(
+    session({
+      name: "qid",
+      store: new RedisStore({
+        client: redisClient,
+        // to prevent users from keeping sessions open too long, also cut down extra calls
+        disableTouch: true,
+      }),
+      cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 3650,
+        httpOnly: true,
+        secure: false, // cookie only works in https,
+        sameSite: "lax", // protect against csrf
+      },
+      secret: "asdhqkwheqwehqwehqwuehlqkwhequwleh",
+      resave: false,
+      saveUninitialized: false,
+    })
+  );
+
   const apolloServer = new ApolloServer({
     schema: await buildSchema({
       resolvers: [HelloResolver, PostResolver, UserResolver],
       validate: false,
     }),
     // context is special obj that is accessible by all Resolver, we can pass the orm obj here, and we only care the em so pass em only
-    context: () => ({ em: orm.em }),
+    context: ({ req, res }): MyContext => ({ em: orm.em, req, res }),
   });
 
-  apolloServer.applyMiddleware({ app });
+  apolloServer.applyMiddleware({
+    app,
+    cors: { credentials: true },
+  });
 
   app.listen(4000, () => {
     console.log(`listening on localhost:4000`);
