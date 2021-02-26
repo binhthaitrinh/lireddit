@@ -1,5 +1,26 @@
 import { Post } from "../entities/Post";
-import { Arg, Int, Mutation, Query, Resolver } from "type-graphql";
+import {
+  Arg,
+  Ctx,
+  Field,
+  InputType,
+  Int,
+  Mutation,
+  Query,
+  Resolver,
+  UseMiddleware,
+} from "type-graphql";
+import { MyContext } from "../types";
+import { isAuth } from "../middleware/isAuth";
+
+@InputType()
+class PostInput {
+  @Field()
+  title: string;
+
+  @Field()
+  text: string;
+}
 
 @Resolver()
 export class PostResolver {
@@ -15,12 +36,14 @@ export class PostResolver {
   }
 
   @Mutation(() => Post)
+  @UseMiddleware(isAuth)
   async createPost(
     // type-graphql might be able to figure out the return type based on typescript type
     // so () => String can be removed
-    @Arg("title", () => String) title: string
+    @Arg("input") input: PostInput,
+    @Ctx() { req }: MyContext
   ): Promise<Post> {
-    return Post.create({ title }).save();
+    return Post.create({ ...input, creatorId: req.session.userId }).save();
   }
 
   @Mutation(() => Post, { nullable: true })
